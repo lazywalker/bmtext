@@ -1,0 +1,15 @@
+[package]
+name = "bmsg"
+version = "0.1.0"
+authors = ["lazywalker <lazywalkerz@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mosquitto-client = { git = "https://github.com/lazywalker/mosquitto-client.git", branch = "master" }
+reqwest = { version = "0.10", features = ["blocking", "json"] }
+serde_json = "1"
+log = "*"
+log4rs = "0.10.0"
+rust-ini = "0.15"
