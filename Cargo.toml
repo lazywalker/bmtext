@@ -1,5 +1,5 @@
 [package]
-name = "bmsg"
+name = "bmtext"
 version = "0.1.0"
 authors = ["lazywalker <lazywalkerz@gmail.com>"]
 edition = "2018"
