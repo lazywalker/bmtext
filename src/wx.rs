@@ -45,7 +45,7 @@ impl Weather {
                 }
 
                 let text: String = format!(
-                    "WX Report - \n{}\nT:{}C H:{}% P:{}hPa\nWind:{}km/h\n{}",
+                    "WX Report - {}\nT:{}C H:{}% P:{}hPa\nWind:{}km/h\n{}",
                     wx_city.join("\n").to_uppercase(),
                     wx_now["tmp"],
                     wx_now["hum"],
@@ -53,6 +53,7 @@ impl Weather {
                     wx_now["wind_spd"],
                     wx_now["cond_txt"]
                 );
+                // trick to remove \" of json value
                 return text.replace(r#"""#, "");
             }
             Err(e) => {

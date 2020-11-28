@@ -61,20 +61,22 @@ impl MQTT {
         let mut mc = self.m.callbacks(0);
         mc.on_message(|_, msg| {
             if incoming.matches(&msg) {
-                info!("topic {} text '{}'", msg.topic(), msg.text());
+                // trick to remove UTF-16LE char
+                let text = msg.text().to_lowercase().replace("\u{0}", "");
+                info!("topic {} text '{}'", msg.topic(), text);
                 // get id from msg.topic()
                 let mut src: Vec<&str> = msg.topic().split('/').collect();
                 src.pop();
                 let id: &str = src.pop().unwrap();
 
                 // get cmd from msg.text()
-                let cmd: Vec<&str> = msg.text().split(' ').collect();
+                let cmd: Vec<&str> = text.split(' ').collect();
                 debug!("{:#?}", cmd);
                 if cmd.len() > 0 {
                     match cmd[0] {
                         "help" => self.send_service_help(id),
                         "wx" => self.send_wx(id, cmd),
-                        _ => warn!("other"),
+                        _ => self.send_service_help(id),
                     }
                 }
             }
@@ -108,17 +110,26 @@ impl MQTT {
         }
 
         debug!("{} -> {}", id, cmd[1]);
-        self.send_text(id, self.weater.get_wx_report(cmd[1]));
+        self.send_text(id, format!("Hi {},\n{}", id, self.weater.get_wx_report(cmd[1])));
     }
 
     fn send_text(&self, id: &str, text: String) {
         info!("Send Msg to ID->{}", id);
         debug!("Msg->>>\n{}", text);
+
+        // trick to convert to UTF-16LE
+        let mut append:Vec<u8> = vec!();
+        for c in text.as_bytes() {
+            append.push(*c);
+            append.push(0);
+        }
+        let payload = &append[..];
+
         self.mp
             .publish(
-                &*format!("Master/{}/Outgoing/Message/{}/", self.bmid, self.serviceid),
-                text.as_bytes(),
-                1,
+                &*format!("Master/{}/Outgoing/Message/{}/{}", self.bmid, self.serviceid, id),
+                payload,
+                0,
                 false,
             )
             .unwrap();
