@@ -115,7 +115,7 @@ impl MQTT {
 
     fn send_text(&self, id: &str, text: String) {
         info!("Send Msg to ID->{}", id);
-        debug!("Msg->>>\n{}", text);
+        info!("Msg->>>\n{}", text);
 
         // trick to convert to UTF-16LE
         let mut append:Vec<u8> = vec!();
