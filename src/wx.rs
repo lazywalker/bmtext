@@ -20,6 +20,7 @@ impl Weather {
     pub fn get_wx_report(&self, city: &str) -> String {
         let url = format!("{}{}", self.data_url, city);
         let resp = reqwest::blocking::get(&*url);
+        let text: String;
 
         match resp {
             Ok(r) => {
@@ -32,35 +33,35 @@ impl Weather {
                 let wx_status = &wx_data["status"];
 
                 if wx_status != "ok" {
-                    return wx_status.to_string();
-                }
+                    text = wx_status.to_string();
+                } else {
+                    let location = wx_basic["location"].to_string();
+                    let mut wx_city: Vec<String> = vec![location];
+                    if wx_basic["location"] != wx_basic["parent_city"] {
+                        wx_city.push(wx_basic["parent_city"].to_string());
+                    }
+                    if wx_basic["parent_city"] != wx_basic["admin_area"] {
+                        wx_city.push(wx_basic["admin_area"].to_string());
+                    }
 
-                let location = wx_basic["location"].to_string();
-                let mut wx_city: Vec<String> = vec![location];
-                if wx_basic["location"] != wx_basic["parent_city"] {
-                    wx_city.push(wx_basic["parent_city"].to_string());
+                    text = format!(
+                        "WX Report - {}\nT:{}C H:{}% P:{}hPa\nWind:{}km/h\n{}",
+                        wx_city.join("\n").to_uppercase(),
+                        wx_now["tmp"],
+                        wx_now["hum"],
+                        wx_now["pres"],
+                        wx_now["wind_spd"],
+                        wx_now["cond_txt"]
+                    );
                 }
-                if wx_basic["parent_city"] != wx_basic["admin_area"] {
-                    wx_city.push(wx_basic["admin_area"].to_string());
-                }
-
-                let text: String = format!(
-                    "WX Report - {}\nT:{}C H:{}% P:{}hPa\nWind:{}km/h\n{}",
-                    wx_city.join("\n").to_uppercase(),
-                    wx_now["tmp"],
-                    wx_now["hum"],
-                    wx_now["pres"],
-                    wx_now["wind_spd"],
-                    wx_now["cond_txt"]
-                );
-                // trick to remove \" of json value
-                return text.replace(r#"""#, "");
             }
             Err(e) => {
                 error!("{:#?}", e);
+                text = "ERROR".to_string();
             }
         };
 
-        "".to_string()
+        // trick to remove \" of json value
+        return text.replace(r#"""#, "");
     }
 }
