@@ -10,6 +10,10 @@ use mosq::Mosquitto;
 // const MQTT_TOPIC_INCOMING: &str = "Master/4601/Incoming/Message/#";
 // const MQTT_TOPIC_OUTGOING: &str = "Master/4601/Outgoing/Message/460990/";
 
+fn raw_byte_8to16(s8: &[u8]) -> &[u16] {
+    unsafe { std::slice::from_raw_parts(s8.as_ptr() as *const u16, s8.len() / 2) }
+}
+
 pub struct MQTT {
     m: Mosquitto,
     mp: Mosquitto,
@@ -41,7 +45,7 @@ impl MQTT {
             mqtt_port,
             bmid,
             serviceid,
-            weater
+            weater,
         }
     }
 
@@ -52,17 +56,13 @@ impl MQTT {
 
         let incoming = self
             .m
-            .subscribe(
-                &*format!("Master/{}/Incoming/Message/#", self.bmid),
-                1,
-            )
+            .subscribe(&*format!("Master/{}/Incoming/Message/#", self.bmid), 1)
             .expect("can't subscribe to topic");
 
         let mut mc = self.m.callbacks(0);
         mc.on_message(|_, msg| {
             if incoming.matches(&msg) {
-                // trick to remove UTF-16LE char
-                let text = msg.text().to_lowercase().replace("\u{0}", "");
+                let text = String::from_utf16_lossy(raw_byte_8to16(msg.payload())).to_lowercase();
                 info!("topic {} text '{}'", msg.topic(), text);
                 // get id from msg.topic()
                 let mut src: Vec<&str> = msg.topic().split('/').collect();
@@ -110,7 +110,10 @@ impl MQTT {
         }
 
         debug!("{} -> {}", id, cmd[1]);
-        self.send_text(id, format!("Hi {},\n{}", id, self.weater.get_wx_report(cmd[1])));
+        self.send_text(
+            id,
+            format!("Hi {},\n{}", id, self.weater.get_wx_report(cmd[1])),
+        );
     }
 
     fn send_text(&self, id: &str, text: String) {
@@ -118,7 +121,7 @@ impl MQTT {
         info!("Msg->>>\n{}", text);
 
         // trick to convert to UTF-16LE
-        let mut append:Vec<u8> = vec!();
+        let mut append: Vec<u8> = vec![];
         for c in text.as_bytes() {
             append.push(*c);
             append.push(0);
@@ -127,7 +130,10 @@ impl MQTT {
 
         self.mp
             .publish(
-                &*format!("Master/{}/Outgoing/Message/{}/{}", self.bmid, self.serviceid, id),
+                &*format!(
+                    "Master/{}/Outgoing/Message/{}/{}",
+                    self.bmid, self.serviceid, id
+                ),
                 payload,
                 0,
                 false,
