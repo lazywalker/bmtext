@@ -80,9 +80,9 @@ impl MQTT {
             if incoming.matches(&msg) {
                 let text = match self.text_encoding {
                     TextEncoding::UTF16LE => {
-                        String::from_utf16_lossy(raw_byte_8to16(msg.payload())).to_lowercase()
+                        String::from_utf16_lossy(raw_byte_8to16(msg.payload())).to_uppercase()
                     }
-                    _ => msg.text().to_lowercase(),
+                    _ => msg.text().to_uppercase(),
                 };
                 info!("topic {} text '{}'", msg.topic(), text);
                 // get id from msg.topic()
@@ -95,9 +95,9 @@ impl MQTT {
                 debug!("{:#?}", cmd);
                 if cmd.len() > 0 {
                     match cmd[0] {
-                        "help" => self.send_service_help(id),
-                        "wx" => self.send_wx(id, cmd),
-                        "whois" => self.send_whois(id, cmd),
+                        "HELP" => self.send_service_help(id),
+                        "WX" => self.send_wx(id, cmd),
+                        "WHOIS" => self.send_whois(id, cmd),
                         _ => self.send_service_help(id),
                     }
                 }
@@ -109,7 +109,7 @@ impl MQTT {
 
     fn send_service_help(&self, id: &str) {
         info!("Service help requested by #{}", id);
-        let text = "BM4601 Service Help\nAvailable commands:\nwx <location>\nwhois <dmrid>\nhelp\n";
+        let text = "BM4601 Service Help\nAvailable commands:\nwx <location>\nwhois <id/callsign>\nhelp\n";
 
         self.send_text(id, text.to_string());
     }
@@ -140,7 +140,7 @@ impl MQTT {
 
     fn send_whois_help(&self, id: &str) {
         debug!("{} -> help whois", id);
-        let text = format!("Hi {},\nuse the format:\nwhois <dmrid>", id);
+        let text = format!("Hi {},\nuse the format:\nwhois <id/callsign>", id);
 
         self.send_text(id, text);
     }
@@ -148,15 +148,12 @@ impl MQTT {
     fn send_whois(&self, id: &str, cmd: Vec<&str>) {
         if cmd.len() == 1 {
             self.send_whois_help(id);
-            warn!("dmrid paramater is missing.");
+            warn!("id/callsign paramater is missing.");
             return;
         }
 
         debug!("{} -> {}", id, cmd[1]);
-        match cmd[1].parse::<u32>() {
-            Ok(dmrid) => self.send_text(id, self.whois.query_text(dmrid)),
-            Err(e) => error!("dmrid error: {}", e),
-        }
+        self.send_text(id, self.whois.query_text(cmd[1]));
     }
 
     fn send_text(&self, id: &str, text: String) {
