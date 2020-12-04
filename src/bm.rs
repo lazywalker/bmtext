@@ -1,8 +1,9 @@
 // extern crate ini;
 extern crate mosquitto_client as mosq;
+use super::whois::Whois;
 use super::wx::Weather;
 use ini::Ini;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use mosq::Mosquitto;
 
 // const MQTT_SERVER_HOST: &str = "localhost";
@@ -22,6 +23,7 @@ pub struct MQTT {
     bmid: u32,
     serviceid: u32,
     weater: Weather,
+    whois: Whois,
 }
 
 impl MQTT {
@@ -37,6 +39,7 @@ impl MQTT {
         let serviceid = sec.get("serviceid").unwrap().parse::<u32>().unwrap();
 
         let weater = Weather::new();
+        let whois = Whois::init();
 
         MQTT {
             m,
@@ -46,6 +49,7 @@ impl MQTT {
             bmid,
             serviceid,
             weater,
+            whois,
         }
     }
 
@@ -63,6 +67,7 @@ impl MQTT {
         mc.on_message(|_, msg| {
             if incoming.matches(&msg) {
                 let text = String::from_utf16_lossy(raw_byte_8to16(msg.payload())).to_lowercase();
+                // let text = msg.text().to_lowercase();
                 info!("topic {} text '{}'", msg.topic(), text);
                 // get id from msg.topic()
                 let mut src: Vec<&str> = msg.topic().split('/').collect();
@@ -76,6 +81,7 @@ impl MQTT {
                     match cmd[0] {
                         "help" => self.send_service_help(id),
                         "wx" => self.send_wx(id, cmd),
+                        "whois" => self.send_whois(id, cmd),
                         _ => self.send_service_help(id),
                     }
                 }
@@ -87,13 +93,13 @@ impl MQTT {
 
     fn send_service_help(&self, id: &str) {
         info!("Service help requested by #{}", id);
-        let text = "BM4601 Service Help\nAvailable commands:\nwx <location>\nhelp\n";
+        let text = "BM4601 Service Help\nAvailable commands:\nwx <location>\nwhois <dmrid>\nhelp\n";
 
         self.send_text(id, text.to_string());
     }
 
     fn send_wx_help(&self, id: &str) {
-        debug!("{} -> wxhelp", id);
+        debug!("{} -> help wx", id);
         let text = format!(
             "Hi {},\nto receive the weather report from a town, use the format:\nwx <town>",
             id
@@ -114,6 +120,27 @@ impl MQTT {
             id,
             format!("Hi {},\n{}", id, self.weater.get_wx_report(cmd[1])),
         );
+    }
+
+    fn send_whois_help(&self, id: &str) {
+        debug!("{} -> help whois", id);
+        let text = format!("Hi {},\nuse the format:\nwhois <dmrid>", id);
+
+        self.send_text(id, text);
+    }
+
+    fn send_whois(&self, id: &str, cmd: Vec<&str>) {
+        if cmd.len() == 1 {
+            self.send_whois_help(id);
+            warn!("dmrid paramater is missing.");
+            return;
+        }
+
+        debug!("{} -> {}", id, cmd[1]);
+        match cmd[1].parse::<u32>() {
+            Ok(dmrid) => self.send_text(id, self.whois.query_text(dmrid)),
+            Err(e) => error!("dmrid error: {}", e),
+        }
     }
 
     fn send_text(&self, id: &str, text: String) {
