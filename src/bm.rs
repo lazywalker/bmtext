@@ -15,6 +15,11 @@ fn raw_byte_8to16(s8: &[u8]) -> &[u16] {
     unsafe { std::slice::from_raw_parts(s8.as_ptr() as *const u16, s8.len() / 2) }
 }
 
+enum TextEncoding {
+    UTF8,
+    UTF16LE,
+}
+
 pub struct MQTT {
     m: Mosquitto,
     mp: Mosquitto,
@@ -22,6 +27,7 @@ pub struct MQTT {
     mqtt_port: u32,
     bmid: u32,
     serviceid: u32,
+    text_encoding: TextEncoding,
     weater: Weather,
     whois: Whois,
 }
@@ -38,6 +44,11 @@ impl MQTT {
         let bmid = sec.get("bmid").unwrap().parse::<u32>().unwrap();
         let serviceid = sec.get("serviceid").unwrap().parse::<u32>().unwrap();
 
+        let text_encoding = match sec.get("text_encoding").unwrap() {
+            "utf8" => TextEncoding::UTF8,
+            _ => TextEncoding::UTF16LE,
+        };
+
         let weater = Weather::new();
         let whois = Whois::init();
 
@@ -48,6 +59,7 @@ impl MQTT {
             mqtt_port,
             bmid,
             serviceid,
+            text_encoding,
             weater,
             whois,
         }
@@ -66,8 +78,12 @@ impl MQTT {
         let mut mc = self.m.callbacks(0);
         mc.on_message(|_, msg| {
             if incoming.matches(&msg) {
-                let text = String::from_utf16_lossy(raw_byte_8to16(msg.payload())).to_lowercase();
-                // let text = msg.text().to_lowercase();
+                let text = match self.text_encoding {
+                    TextEncoding::UTF16LE => {
+                        String::from_utf16_lossy(raw_byte_8to16(msg.payload())).to_lowercase()
+                    }
+                    _ => msg.text().to_lowercase(),
+                };
                 info!("topic {} text '{}'", msg.topic(), text);
                 // get id from msg.topic()
                 let mut src: Vec<&str> = msg.topic().split('/').collect();
@@ -147,14 +163,18 @@ impl MQTT {
         info!("Send Msg to ID->{}", id);
         info!("Msg->>>\n{}", text);
 
-        // trick to convert to UTF-16LE
         let mut append: Vec<u8> = vec![];
-        for c in text.as_bytes() {
-            append.push(*c);
-            append.push(0);
-        }
-        let payload = &append[..];
-
+        let payload = match self.text_encoding {
+            TextEncoding::UTF16LE => {
+                // trick to convert to UTF-16LE
+                for c in text.as_bytes() {
+                    append.push(*c);
+                    append.push(0);
+                }
+                &append[..]
+            }
+            _ => text.as_bytes(),
+        };
         self.mp
             .publish(
                 &*format!(
