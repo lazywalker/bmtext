@@ -10,7 +10,7 @@ impl Weather {
         let conf = Ini::load_from_file("config.ini").unwrap();
         let sec = conf.section(Some("wx")).unwrap();
         let data_url = format!(
-            "https://free-api.heweather.com/s6/weather/now?key={}&lang=en&location=",
+            "https://devapi.qweather.com/s6/weather/now?key={}&lang=en&location=",
             sec.get("token").unwrap()
         );
 
